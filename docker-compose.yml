@@ -1,0 +1,54 @@
+# Orchestration complète : API backend + frontend nginx
+# Les valeurs sensibles / spécifiques à l'environnement viennent de .env
+# (voir .env.example). Ne jamais committer de vrai .env.
+
+services:
+  backend:
+    build:
+      context: ./backend
+    image: gmq-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_PATH: /data/gmq.db
+      # Origines autorisées pour CORS (séparées par des virgules).
+      # En prod, mettez l'URL publique du frontend.
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      # Rendement carcasse par défaut (%) pour convertir carcasse -> poids vif
+      RENDEMENT_DEFAULT: ${RENDEMENT_DEFAULT:-58}
+    volumes:
+      - gmq-data:/data
+    # Le backend n'est pas exposé directement : seul nginx y accède
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "require('http').get('http://localhost:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: ./frontend
+    image: gmq-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # Port publié configurable (défaut 8080). Placez un reverse-proxy TLS devant en prod.
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  gmq-data:
+    driver: local

@@ -1,0 +1,42 @@
+# Dépendances
+node_modules/
+.pnp
+.pnp.js
+
+# Build / sortie
+dist/
+dist-ssr/
+build/
+*.local
+
+# Base de données SQLite (générée)
+*.db
+*.db-shm
+*.db-wal
+
+# Variables d'environnement (secrets) — ne jamais committer
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cache outils (Vite, ESLint, tests…)
+.vite/
+.cache/
+.eslintcache
+coverage/
+
+# Fichiers système / éditeurs
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
