@@ -39,15 +39,26 @@ services:
     build:
       context: ./frontend
     image: gmq-frontend
+    # Nom fixe : c'est l'adresse utilisée par Caddy (reverse_proxy gmq-frontend:80).
+    container_name: gmq-frontend
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
-    # Port publié configurable (défaut 8080). Placez un reverse-proxy TLS devant en prod.
+    # Lié à la loopback : en prod l'accès public passe exclusivement par Caddy
+    # (stack ~/proxy) en HTTPS ; ce binding ne sert qu'au dev local. Un binding
+    # 0.0.0.0 rendrait l'app joignable en HTTP nu sur IP:8080, hors TLS.
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
+    networks:
+      - default   # pour joindre backend:3000
+      - proxy     # joignable par le reverse-proxy Caddy
     security_opt:
       - no-new-privileges:true
+
+networks:
+  proxy:
+    external: true
 
 volumes:
   gmq-data:
