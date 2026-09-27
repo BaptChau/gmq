@@ -17,6 +17,11 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       # Rendement carcasse par défaut (%) pour convertir carcasse -> poids vif
       RENDEMENT_DEFAULT: ${RENDEMENT_DEFAULT:-58}
+      # Secret de signature des sessions (obligatoire, voir .env.example)
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET doit être défini dans .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      # Email du compte qui récupère les données créées avant les comptes
+      ANCIENNES_DONNEES_EMAIL: ${ANCIENNES_DONNEES_EMAIL:-}
     volumes:
       - gmq-data:/data
     # Le backend n'est pas exposé directement : seul nginx y accède

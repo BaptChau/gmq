@@ -17,27 +17,79 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Initialise le schéma au démarrage (bases neuves)
-const schema = readFileSync(join(__dirname, '..', 'schema.sql'), 'utf-8');
-db.exec(schema);
-
 // --- Migrations légères pour les bases déjà existantes ---
+function tableExiste(table) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table));
+}
+function colonneExiste(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+}
 // Ajoute une colonne si elle n'existe pas encore (ALTER TABLE idempotent).
 function ensureColumn(table, column, definition) {
-  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
-  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  if (tableExiste(table) && !colonneExiste(table, column))
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 ensureColumn('pesees', 'type', "TEXT NOT NULL DEFAULT 'vif'");
 ensureColumn('broutards', 'rendement', 'REAL');
 
+// Email du compte « propriétaire » des données créées avant l'arrivée des comptes.
+export const EMAIL_ANCIENNES_DONNEES = '__anciennes-donnees__';
+
+// Passage au multi-exploitant : les anciennes tables (sans exploitant_id) sont
+// reconstruites, et les données existantes rattachées à un compte provisoire
+// qui sera réclamé à l'inscription (voir server.js, /api/auth/register).
+const migrationMultiExploitant = tableExiste('broutards') && !colonneExiste('broutards', 'exploitant_id');
+if (migrationMultiExploitant) {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      ALTER TABLE pesees RENAME TO pesees_old;
+      ALTER TABLE broutards RENAME TO broutards_old;
+      ALTER TABLE meres RENAME TO meres_old;
+      DROP INDEX IF EXISTS idx_pesees_broutard;
+      DROP INDEX IF EXISTS idx_pesees_date;
+      DROP INDEX IF EXISTS idx_broutards_mere;
+    `);
+    db.exec(readFileSync(join(__dirname, '..', 'schema.sql'), 'utf-8'));
+    const aDesDonnees =
+      db.prepare('SELECT (SELECT COUNT(*) FROM meres_old) + (SELECT COUNT(*) FROM broutards_old) AS n').get().n > 0;
+    if (aDesDonnees) {
+      const id = db
+        .prepare('INSERT INTO exploitants (email, mot_de_passe, nom) VALUES (?, NULL, NULL)')
+        .run(EMAIL_ANCIENNES_DONNEES).lastInsertRowid;
+      db.prepare('INSERT INTO meres (id, exploitant_id, numero, nom) SELECT id, ?, numero, nom FROM meres_old').run(id);
+      db.prepare(
+        `INSERT INTO broutards (exploitant_id, numero, mere_id, debut_engraissement, rendement, cree_le)
+         SELECT ?, numero, mere_id, debut_engraissement, rendement, cree_le FROM broutards_old`
+      ).run(id);
+      db.prepare(
+        `INSERT INTO pesees (id, exploitant_id, broutard_numero, date, poids, type)
+         SELECT id, ?, broutard_numero, date, poids, type FROM pesees_old`
+      ).run(id);
+    }
+    db.exec('DROP TABLE pesees_old; DROP TABLE broutards_old; DROP TABLE meres_old;');
+  })();
+  db.pragma('foreign_keys = ON');
+}
+
+// Initialise le schéma au démarrage (bases neuves)
+db.exec(readFileSync(join(__dirname, '..', 'schema.sql'), 'utf-8'));
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_pesees_broutard ON pesees(exploitant_id, broutard_numero, date);
+  CREATE INDEX IF NOT EXISTS idx_broutards_mere ON broutards(mere_id);
+`);
+
 /**
  * Rendement carcasse (%) applicable à un broutard : le sien s'il est défini,
  * sinon le défaut global.
+ * @param {number} exploitantId
  * @param {string} numero
  * @returns {number}
  */
-export function rendementDuBroutard(numero) {
-  const row = db.prepare('SELECT rendement FROM broutards WHERE numero = ?').get(numero);
+export function rendementDuBroutard(exploitantId, numero) {
+  const row = db
+    .prepare('SELECT rendement FROM broutards WHERE exploitant_id = ? AND numero = ?')
+    .get(exploitantId, numero);
   return row && row.rendement != null ? row.rendement : RENDEMENT_DEFAUT;
 }
 
@@ -58,14 +110,17 @@ export function carcasseVersVif(poidsCarcasse, rendementPct) {
  * pour rester comparables aux pesées sur pied.
  * GMQ = (dernier poids vif - premier poids vif) / nombre de jours, exprimé en g/jour.
  * Retourne null si moins de 2 pesées ou si l'intervalle est nul.
+ * @param {number} exploitantId
  * @param {string} numero
  */
-export function calculerGmq(numero) {
+export function calculerGmq(exploitantId, numero) {
   const pesees = db
-    .prepare('SELECT date, poids, type FROM pesees WHERE broutard_numero = ? ORDER BY date ASC, id ASC')
-    .all(numero);
+    .prepare(
+      'SELECT date, poids, type FROM pesees WHERE exploitant_id = ? AND broutard_numero = ? ORDER BY date ASC, id ASC'
+    )
+    .all(exploitantId, numero);
 
-  const rendement = rendementDuBroutard(numero);
+  const rendement = rendementDuBroutard(exploitantId, numero);
 
   // Point de mesure avec poids vif (converti si carcasse)
   const points = pesees.map((p) => ({

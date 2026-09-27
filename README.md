@@ -7,9 +7,18 @@ Application de suivi d'engraissement de broutards avec calcul automatique du **G
 
 ## Modèle de données
 
-- **meres** : `id`, `numero` (unique), `nom`
-- **broutards** : `numero` (clé primaire), `mere_id` → meres, `debut_engraissement`, `rendement` (%) optionnel
-- **pesees** : `id`, `broutard_numero` → broutards, `date`, `poids` (kg), `type` (`vif` ou `carcasse`)
+- **exploitants** : `id`, `email` (unique), `mot_de_passe` (hash bcrypt), `nom`
+- **meres** : `id`, `exploitant_id` → exploitants, `numero` (unique par exploitant), `nom`
+- **broutards** : clé primaire `(exploitant_id, numero)`, `mere_id` → meres, `debut_engraissement`, `rendement` (%) optionnel
+- **pesees** : `id`, `(exploitant_id, broutard_numero)` → broutards, `date`, `poids` (kg), `type` (`vif` ou `carcasse`)
+
+### Comptes exploitants
+Chaque agriculteur crée son compte (email + mot de passe) et ne voit que ses propres animaux.
+Un broutard est identifié par **son numéro et l'exploitant** : deux exploitants peuvent donc avoir
+un animal portant le même numéro. L'authentification se fait par jeton JWT (`Authorization: Bearer …`).
+
+Lors de la mise à jour d'une base existante, les données déjà présentes sont rattachées au compte
+qui s'inscrit avec l'email `ANCIENNES_DONNEES_EMAIL` (ou, à défaut, au premier compte inscrit).
 
 ### Poids de carcasse et rendement
 La dernière pesée peut être un **poids de carcasse** (sortie d'abattoir), de nature différente d'un poids vif.
@@ -29,7 +38,7 @@ Le **GMQ** n'est pas stocké : il est calculé à la volée à partir des pesée
 ```bash
 cd backend
 npm install
-npm run seed     # (optionnel) données de démonstration
+npm run seed     # (optionnel) données de démonstration — compte demo@gmq.fr / demo123
 npm run dev      # http://localhost:3000
 ```
 
@@ -71,11 +80,19 @@ Architecture des conteneurs :
 |---|---|---|
 | `FRONTEND_PORT` | Port public du frontend | `8080` |
 | `CORS_ORIGIN` | Origines autorisées (CORS), séparées par des virgules | vide (tout autorisé) |
+| `JWT_SECRET` | Secret de signature des sessions — **obligatoire** | — |
+| `JWT_EXPIRES_IN` | Durée d'une session | `7d` |
+| `ANCIENNES_DONNEES_EMAIL` | Compte qui récupère les données antérieures aux comptes | vide (premier inscrit) |
 
 ## API REST
 
+Toutes les routes sauf `/api/auth/register`, `/api/auth/login` et `/api/config` exigent un jeton.
+
 | Méthode | Route | Description |
 |---|---|---|
+| POST | `/api/auth/register` | Créer un compte exploitant (`email`, `mot_de_passe`, `nom`) → jeton |
+| POST | `/api/auth/login` | Se connecter → jeton |
+| GET | `/api/auth/me` | Compte connecté |
 | GET | `/api/meres` | Liste des mères |
 | POST | `/api/meres` | Créer une mère |
 | DELETE | `/api/meres/:id` | Supprimer une mère |

@@ -1,11 +1,37 @@
 // Petit client HTTP pour l'API GMQ
 const BASE = '/api';
+const CLE_JETON = 'gmq_token';
+
+// Jeton JWT de la session, conservé dans le navigateur
+let token = null;
+try { token = localStorage.getItem(CLE_JETON); } catch { /* stockage indisponible */ }
+
+export function getToken() {
+  return token;
+}
+
+export function setToken(valeur) {
+  token = valeur;
+  try {
+    if (valeur) localStorage.setItem(CLE_JETON, valeur);
+    else localStorage.removeItem(CLE_JETON);
+  } catch { /* stockage indisponible */ }
+}
+
+// Appelé quand le serveur refuse le jeton (session expirée) : défini par App.vue
+let surSessionExpiree = () => {};
+export function onSessionExpiree(fn) {
+  surSessionExpiree = fn;
+}
 
 async function req(url, options = {}) {
-  const res = await fetch(BASE + url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(BASE + url, { ...options, headers });
+  if (res.status === 401 && token) {
+    setToken(null);
+    surSessionExpiree();
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Erreur ${res.status}`);
@@ -14,6 +40,11 @@ async function req(url, options = {}) {
 }
 
 export const api = {
+  // Authentification
+  register: (data) => req('/auth/register', { method: 'POST', body: JSON.stringify(data) }),
+  login: (data) => req('/auth/login', { method: 'POST', body: JSON.stringify(data) }),
+  me: () => req('/auth/me'),
+
   // Configuration (valeurs de rendement pour le sélecteur)
   getConfig: () => req('/config'),
 

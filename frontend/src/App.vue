@@ -1,10 +1,13 @@
 <script setup>
 import { ref, onMounted } from 'vue';
-import { api } from './api.js';
+import { api, getToken, setToken, onSessionExpiree } from './api.js';
+import Login from './components/Login.vue';
 import BroutardForm from './components/BroutardForm.vue';
 import BroutardDetail from './components/BroutardDetail.vue';
 import MereManager from './components/MereManager.vue';
 
+const exploitant = ref(null); // compte connecté (null => écran de connexion)
+const verificationSession = ref(Boolean(getToken()));
 const broutards = ref([]);
 const meres = ref([]);
 const selection = ref(null); // numéro du broutard sélectionné
@@ -80,12 +83,50 @@ function gmqLabel(b) {
   return b.gmq_g_jour == null ? 'En attente' : `${b.gmq_g_jour} g/jour`;
 }
 
-onMounted(charger);
+function reinitialiser() {
+  exploitant.value = null;
+  broutards.value = [];
+  meres.value = [];
+  selection.value = null;
+  detail.value = null;
+  error.value = '';
+  succes.value = '';
+}
+
+async function onConnecte(compte) {
+  exploitant.value = compte;
+  await charger();
+}
+
+function deconnecter() {
+  setToken(null);
+  reinitialiser();
+}
+
+onSessionExpiree(reinitialiser);
+
+onMounted(async () => {
+  if (!getToken()) return;
+  try {
+    exploitant.value = await api.me();
+    await charger();
+  } catch {
+    reinitialiser();
+  } finally {
+    verificationSession.value = false;
+  }
+});
 </script>
 
 <template>
-  <div class="container">
+  <div v-if="verificationSession" class="container"><p class="aide">Chargement…</p></div>
+  <Login v-else-if="!exploitant" @connecte="onConnecte" />
+  <div v-else class="container">
     <header>
+      <div class="barre-compte">
+        <span>👤 {{ exploitant.nom || exploitant.email }}</span>
+        <button class="ghost" @click="deconnecter">Se déconnecter</button>
+      </div>
       <h1>🐄 Suivi de mes broutards</h1>
       <p class="sous-titre">
         Enregistrez vos jeunes bovins, notez leurs pesées, et voyez tout de suite s'ils grossissent bien.
