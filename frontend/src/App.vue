@@ -94,6 +94,7 @@ function reinitialiser() {
 }
 
 async function onConnecte(compte) {
+  messageDeconnexion.value = '';
   exploitant.value = compte;
   await charger();
 }
@@ -103,7 +104,12 @@ function deconnecter() {
   reinitialiser();
 }
 
-onSessionExpiree(reinitialiser);
+// Raison de la déconnexion forcée, affichée sur l'écran de connexion
+const messageDeconnexion = ref('');
+onSessionExpiree((message) => {
+  reinitialiser();
+  messageDeconnexion.value = message;
+});
 
 onMounted(async () => {
   if (!getToken()) return;
@@ -120,7 +126,7 @@ onMounted(async () => {
 
 <template>
   <div v-if="verificationSession" class="container"><p class="aide">Chargement…</p></div>
-  <Login v-else-if="!exploitant" @connecte="onConnecte" />
+  <Login v-else-if="!exploitant" :message="messageDeconnexion" @connecte="onConnecte" />
   <div v-else class="container">
     <header>
       <div class="barre-compte">

@@ -1,7 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import db, { calculerGmq, RENDEMENT_DEFAUT, RENDEMENTS_AUTORISES, EMAIL_ANCIENNES_DONNEES } from './db.js';
-import { authRequis, hacherMotDePasse, verifierMotDePasse, signerJeton } from './auth.js';
+import {
+  authRequis, hacherMotDePasse, verifierMotDePasse, signerJeton, messageStatut, MOT_DE_PASSE_MIN, EMAIL_REGEX,
+} from './auth.js';
+import adminRouter from './admin.js';
 
 const app = express();
 
@@ -23,8 +26,6 @@ app.get('/api/config', (req, res) => {
 
 /* ------------------------- AUTHENTIFICATION ------------------------- */
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 function exploitantPublic(e) {
   return { id: e.id, email: e.email, nom: e.nom };
 }
@@ -34,8 +35,8 @@ app.post('/api/auth/register', (req, res) => {
   const motDePasse = String(req.body.mot_de_passe || '');
   const nom = String(req.body.nom || '').trim() || null;
   if (!EMAIL_REGEX.test(email)) return res.status(400).json({ error: 'Adresse email invalide' });
-  if (motDePasse.length < 6)
-    return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères' });
+  if (motDePasse.length < MOT_DE_PASSE_MIN)
+    return res.status(400).json({ error: `Le mot de passe doit contenir au moins ${MOT_DE_PASSE_MIN} caractères` });
   if (db.prepare('SELECT 1 FROM exploitants WHERE email = ?').get(email))
     return res.status(409).json({ error: 'Un compte existe déjà avec cet email' });
 
@@ -53,11 +54,14 @@ app.post('/api/auth/register', (req, res) => {
     id = provisoire.id;
   } else {
     id = db
-      .prepare('INSERT INTO exploitants (email, mot_de_passe, nom) VALUES (?, ?, ?)')
+      .prepare("INSERT INTO exploitants (email, mot_de_passe, nom, statut) VALUES (?, ?, ?, 'en_attente')")
       .run(email, hash, nom).lastInsertRowid;
   }
 
+  // Le compte doit être validé depuis le back-office avant de pouvoir se connecter.
   const exploitant = db.prepare('SELECT * FROM exploitants WHERE id = ?').get(id);
+  const bloque = messageStatut(exploitant.statut);
+  if (bloque) return res.status(201).json({ exploitant: exploitantPublic(exploitant), message: bloque });
   res.status(201).json({ token: signerJeton(exploitant), exploitant: exploitantPublic(exploitant) });
 });
 
@@ -67,14 +71,17 @@ app.post('/api/auth/login', (req, res) => {
   const exploitant = db.prepare('SELECT * FROM exploitants WHERE email = ?').get(email);
   if (!exploitant || !exploitant.mot_de_passe || !verifierMotDePasse(motDePasse, exploitant.mot_de_passe))
     return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
+  const bloque = messageStatut(exploitant.statut);
+  if (bloque) return res.status(403).json({ error: bloque, statut: exploitant.statut });
   res.json({ token: signerJeton(exploitant), exploitant: exploitantPublic(exploitant) });
 });
 
 app.get('/api/auth/me', authRequis, (req, res) => {
-  const exploitant = db.prepare('SELECT * FROM exploitants WHERE id = ?').get(req.exploitant.id);
-  if (!exploitant) return res.status(401).json({ error: 'Compte introuvable' });
-  res.json(exploitantPublic(exploitant));
+  res.json(exploitantPublic(req.exploitant));
 });
+
+// Back-office (exposé uniquement sur le sous-domaine backof.*, voir nginx.conf)
+app.use('/api/admin', adminRouter);
 
 // Toutes les routes métier ci-dessous exigent d'être connecté
 app.use(['/api/meres', '/api/broutards', '/api/pesees'], authRequis);

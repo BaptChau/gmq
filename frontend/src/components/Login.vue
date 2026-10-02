@@ -2,17 +2,20 @@
 import { ref } from 'vue';
 import { api, setToken } from '../api.js';
 
+const props = defineProps({ message: { type: String, default: '' } });
 const emit = defineEmits(['connecte']);
 
 const mode = ref('login'); // 'login' ou 'register'
 const email = ref('');
 const mot_de_passe = ref('');
 const nom = ref('');
-const erreur = ref('');
+const erreur = ref(props.message);
+const info = ref('');
 const enCours = ref(false);
 
 async function valider() {
   erreur.value = '';
+  info.value = '';
   if (!email.value || !mot_de_passe.value) {
     erreur.value = 'Merci de renseigner votre email et votre mot de passe.';
     return;
@@ -23,6 +26,13 @@ async function valider() {
       mode.value === 'login'
         ? await api.login({ email: email.value, mot_de_passe: mot_de_passe.value })
         : await api.register({ email: email.value, mot_de_passe: mot_de_passe.value, nom: nom.value });
+    if (!data.token) {
+      // Compte créé mais en attente de validation par un administrateur
+      info.value = `${data.message} Vous pourrez vous connecter dès qu'il sera validé.`;
+      mode.value = 'login';
+      mot_de_passe.value = '';
+      return;
+    }
     setToken(data.token);
     emit('connecte', data.exploitant);
   } catch (e) {
@@ -35,6 +45,7 @@ async function valider() {
 function basculer() {
   mode.value = mode.value === 'login' ? 'register' : 'login';
   erreur.value = '';
+  info.value = '';
 }
 </script>
 
@@ -46,6 +57,7 @@ function basculer() {
         {{ mode === 'login' ? 'Connectez-vous à votre exploitation.' : 'Créez le compte de votre exploitation.' }}
       </p>
 
+      <p v-if="info" class="bandeau succes">✓ {{ info }}</p>
       <p v-if="erreur" class="bandeau erreur">⚠️ {{ erreur }}</p>
 
       <div v-if="mode === 'register'" class="champ">

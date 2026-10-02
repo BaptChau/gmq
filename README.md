@@ -17,6 +17,9 @@ Chaque agriculteur crée son compte (email + mot de passe) et ne voit que ses pr
 Un broutard est identifié par **son numéro et l'exploitant** : deux exploitants peuvent donc avoir
 un animal portant le même numéro. L'authentification se fait par jeton JWT (`Authorization: Bearer …`).
 
+Un nouveau compte est **en attente** tant qu'un administrateur ne l'a pas validé depuis le back-office ;
+un compte **gelé** ne peut plus se connecter (ses sessions ouvertes sont refusées immédiatement).
+
 Lors de la mise à jour d'une base existante, les données déjà présentes sont rattachées au compte
 qui s'inscrit avec l'email `ANCIENNES_DONNEES_EMAIL` (ou, à défaut, au premier compte inscrit).
 
@@ -31,6 +34,41 @@ besoin par un rendement propre à chaque broutard (sélecteur 55 / 58 / 60 %).
 
 Le **GMQ** n'est pas stocké : il est calculé à la volée à partir des pesées (carcasse convertie en poids vif) :
 `(dernier poids vif − premier poids vif) / nombre de jours`, exprimé en **g/jour** (null si < 2 pesées).
+
+## Back-office (`backof.<domaine>`)
+
+Interface d'administration séparée de l'appli exploitant (`frontend/admin.html`, `frontend/src/admin/`) :
+- validation des nouveaux comptes, gel / réactivation (avec motif) ;
+- changement du mot de passe d'un exploitant (ses sessions en cours sont fermées) ;
+- saisie de l'abonnement (formule, statut, dates) — socle de la future gestion des abonnements ;
+- historique des actions de chaque admin (`admin_journal`).
+
+Les admins sont des comptes distincts (table `admins`) avec leurs propres jetons : un jeton exploitant
+n'ouvre pas le back-office et inversement. Pour créer un admin (ou réinitialiser son mot de passe) :
+
+```bash
+cd backend && npm run admin -- vous@exemple.fr "Votre nom"         # en local
+docker compose exec backend node src/admin-cli.js vous@exemple.fr   # en production
+```
+
+Le mot de passe (10 caractères minimum) est demandé au clavier.
+
+**Routage** : nginx sert le back-office quand l'hôte commence par `backof.`, et l'appli exploitant sinon.
+Les routes `/api/admin/*` ne répondent **que** sur le sous-domaine `backof.` (404 sur le domaine principal).
+Côté Caddy, il suffit de router le sous-domaine vers le même conteneur :
+
+```
+backof.mon-domaine.fr {
+    reverse_proxy gmq-frontend:80
+}
+```
+
+En dev : `http://localhost:5173/admin.html`.
+
+### Abonnements (préparation)
+`backend/src/abonnements.js` contient les formules (`FORMULES`, à adapter), la validation, et un
+middleware `abonnementRequis` (réponse 402) **pas encore branché**. Les colonnes `fournisseur*`
+de la table `abonnements` sont prévues pour un futur paiement en ligne (ex. Stripe).
 
 ## Démarrage
 
@@ -82,6 +120,7 @@ Architecture des conteneurs :
 | `CORS_ORIGIN` | Origines autorisées (CORS), séparées par des virgules | vide (tout autorisé) |
 | `JWT_SECRET` | Secret de signature des sessions — **obligatoire** | — |
 | `JWT_EXPIRES_IN` | Durée d'une session | `7d` |
+| `ADMIN_JWT_EXPIRES_IN` | Durée d'une session du back-office | `8h` |
 | `ANCIENNES_DONNEES_EMAIL` | Compte qui récupère les données antérieures aux comptes | vide (premier inscrit) |
 
 ## API REST
@@ -93,6 +132,14 @@ Toutes les routes sauf `/api/auth/register`, `/api/auth/login` et `/api/config` 
 | POST | `/api/auth/register` | Créer un compte exploitant (`email`, `mot_de_passe`, `nom`) → jeton |
 | POST | `/api/auth/login` | Se connecter → jeton |
 | GET | `/api/auth/me` | Compte connecté |
+| POST | `/api/admin/login` | Connexion admin → jeton admin |
+| GET | `/api/admin/exploitants?statut=&q=` | Liste des exploitants (+ abonnement) |
+| GET | `/api/admin/exploitants/:id` | Détail + historique |
+| PATCH | `/api/admin/exploitants/:id/statut` | `{ statut: en_attente\|actif\|gele, motif }` |
+| PUT | `/api/admin/exploitants/:id/mot-de-passe` | `{ mot_de_passe }` |
+| GET | `/api/admin/abonnements/formules` | Formules et statuts d'abonnement |
+| PUT / DELETE | `/api/admin/exploitants/:id/abonnement` | Créer / modifier / supprimer l'abonnement |
+| GET | `/api/admin/journal` | Journal des actions admin |
 | GET | `/api/meres` | Liste des mères |
 | POST | `/api/meres` | Créer une mère |
 | DELETE | `/api/meres/:id` | Supprimer une mère |

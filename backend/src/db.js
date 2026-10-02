@@ -74,7 +74,14 @@ if (migrationMultiExploitant) {
 
 // Initialise le schéma au démarrage (bases neuves)
 db.exec(readFileSync(join(__dirname, '..', 'schema.sql'), 'utf-8'));
+// Colonnes de gestion de compte ajoutées après coup : les comptes déjà existants restent actifs.
+ensureColumn('exploitants', 'statut', "TEXT NOT NULL DEFAULT 'actif' CHECK (statut IN ('en_attente', 'actif', 'gele'))");
+ensureColumn('exploitants', 'statut_motif', 'TEXT');
+ensureColumn('exploitants', 'statut_maj_le', 'TEXT');
+ensureColumn('exploitants', 'jeton_version', 'INTEGER NOT NULL DEFAULT 0');
+
 db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_admin_journal_exploitant ON admin_journal(exploitant_id);
   CREATE INDEX IF NOT EXISTS idx_pesees_broutard ON pesees(exploitant_id, broutard_numero, date);
   CREATE INDEX IF NOT EXISTS idx_broutards_mere ON broutards(mere_id);
 `);

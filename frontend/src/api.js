@@ -18,7 +18,7 @@ export function setToken(valeur) {
   } catch { /* stockage indisponible */ }
 }
 
-// Appelé quand le serveur refuse le jeton (session expirée) : défini par App.vue
+// Appelé quand le serveur refuse le jeton (session expirée, compte gelé) : défini par App.vue
 let surSessionExpiree = () => {};
 export function onSessionExpiree(fn) {
   surSessionExpiree = fn;
@@ -28,12 +28,13 @@ async function req(url, options = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(BASE + url, { ...options, headers });
-  if (res.status === 401 && token) {
-    setToken(null);
-    surSessionExpiree();
-  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // 401 : session expirée ; 403 avec statut : compte gelé ou en attente
+    if (token && (res.status === 401 || (res.status === 403 && body.statut))) {
+      setToken(null);
+      surSessionExpiree(res.status === 403 ? body.error : 'Votre session a expiré, reconnectez-vous.');
+    }
     throw new Error(body.error || `Erreur ${res.status}`);
   }
   return res.status === 204 ? null : res.json();

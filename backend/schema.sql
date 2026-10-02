@@ -8,7 +8,51 @@ CREATE TABLE IF NOT EXISTS exploitants (
   email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
   mot_de_passe     TEXT,                          -- hash bcrypt ; NULL => compte non connectable
   nom              TEXT,                          -- nom de l'exploitation (optionnel)
+  statut           TEXT NOT NULL DEFAULT 'en_attente'   -- validé par un admin avant de pouvoir se connecter
+                     CHECK (statut IN ('en_attente', 'actif', 'gele')),
+  statut_motif     TEXT,                          -- raison du gel (affichée à l'admin)
+  statut_maj_le    TEXT,
+  jeton_version    INTEGER NOT NULL DEFAULT 0,    -- incrémenté pour invalider les sessions en cours
   cree_le          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Administrateurs du back-office (comptes distincts des exploitants)
+CREATE TABLE IF NOT EXISTS admins (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  mot_de_passe     TEXT NOT NULL,
+  nom              TEXT,
+  jeton_version    INTEGER NOT NULL DEFAULT 0,
+  cree_le          TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Abonnement d'un exploitant (préparation de la future gestion des abonnements).
+-- Une ligne par exploitant ; pas de ligne => aucun abonnement.
+CREATE TABLE IF NOT EXISTS abonnements (
+  exploitant_id              INTEGER PRIMARY KEY,
+  formule                    TEXT NOT NULL,       -- code de formule (voir FORMULES dans abonnements.js)
+  statut                     TEXT NOT NULL DEFAULT 'essai'
+                               CHECK (statut IN ('essai', 'actif', 'impaye', 'annule', 'expire')),
+  debut                      TEXT,                -- date ISO 'YYYY-MM-DD'
+  fin                        TEXT,                -- date ISO ; NULL => sans échéance
+  fournisseur                TEXT,                -- ex. 'stripe' (paiement en ligne, plus tard)
+  fournisseur_client_id      TEXT,                -- identifiant client chez le fournisseur
+  fournisseur_abonnement_id  TEXT,                -- identifiant d'abonnement chez le fournisseur
+  notes                      TEXT,
+  maj_le                     TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (exploitant_id) REFERENCES exploitants(id) ON DELETE CASCADE
+);
+
+-- Journal des actions effectuées depuis le back-office
+CREATE TABLE IF NOT EXISTS admin_journal (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_id       INTEGER,
+  action         TEXT NOT NULL,
+  exploitant_id  INTEGER,
+  details        TEXT,                            -- JSON
+  cree_le        TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+  FOREIGN KEY (exploitant_id) REFERENCES exploitants(id) ON DELETE SET NULL
 );
 
 -- Mères : chaque broutard descend d'une mère.

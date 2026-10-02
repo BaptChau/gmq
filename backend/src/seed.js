@@ -6,7 +6,7 @@ db.exec('DELETE FROM pesees; DELETE FROM broutards; DELETE FROM meres; DELETE FR
 
 // Compte de démonstration : demo@gmq.fr / demo123
 const exp = db
-  .prepare('INSERT INTO exploitants (email, mot_de_passe, nom) VALUES (?, ?, ?)')
+  .prepare("INSERT INTO exploitants (email, mot_de_passe, nom, statut) VALUES (?, ?, ?, 'actif')")
   .run('demo@gmq.fr', hacherMotDePasse('demo123'), 'GAEC de démonstration').lastInsertRowid;
 
 const insMere = db.prepare('INSERT INTO meres (exploitant_id, numero, nom) VALUES (?, ?, ?)');

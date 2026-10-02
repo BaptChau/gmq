@@ -20,6 +20,7 @@ services:
       # Secret de signature des sessions (obligatoire, voir .env.example)
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET doit être défini dans .env}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      ADMIN_JWT_EXPIRES_IN: ${ADMIN_JWT_EXPIRES_IN:-8h}
       # Email du compte qui récupère les données créées avant les comptes
       ANCIENNES_DONNEES_EMAIL: ${ANCIENNES_DONNEES_EMAIL:-}
     volumes:
