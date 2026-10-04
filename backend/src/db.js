@@ -80,6 +80,36 @@ ensureColumn('exploitants', 'statut_motif', 'TEXT');
 ensureColumn('exploitants', 'statut_maj_le', 'TEXT');
 ensureColumn('exploitants', 'jeton_version', 'INTEGER NOT NULL DEFAULT 0');
 
+// Admins : passage de email + mot de passe à identifiant + TOTP. Les admins existants
+// gardent leur id (journal intact), avec leur email comme identifiant, et doivent
+// être réenrôlés (admin-cli) pour obtenir un secret TOTP.
+if (colonneExiste('admins', 'email')) {
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE admins_new (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        identifiant       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+        nom               TEXT,
+        totp_secret       TEXT,
+        totp_dernier_pas  INTEGER NOT NULL DEFAULT -1,
+        jeton_version     INTEGER NOT NULL DEFAULT 0,
+        cree_le           TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO admins_new (id, identifiant, nom, jeton_version, cree_le)
+        SELECT id, LOWER(email), nom, jeton_version + 1, cree_le FROM admins;
+      DROP TABLE admins;
+      ALTER TABLE admins_new RENAME TO admins;
+    `);
+  })();
+  db.pragma('foreign_keys = ON');
+}
+
+// Enrôlement TOTP depuis le navigateur (première connexion avec un code d'activation)
+ensureColumn('admins', 'totp_secret_attente', 'TEXT');
+ensureColumn('admins', 'activation_hash', 'TEXT');
+ensureColumn('admins', 'activation_expire', 'TEXT');
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_admin_journal_exploitant ON admin_journal(exploitant_id);
   CREATE INDEX IF NOT EXISTS idx_pesees_broutard ON pesees(exploitant_id, broutard_numero, date);

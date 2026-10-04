@@ -16,14 +16,19 @@ CREATE TABLE IF NOT EXISTS exploitants (
   cree_le          TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Administrateurs du back-office (comptes distincts des exploitants)
+-- Administrateurs du back-office (comptes distincts des exploitants).
+-- Connexion par identifiant + code TOTP d'une application d'authentification.
 CREATE TABLE IF NOT EXISTS admins (
-  id               INTEGER PRIMARY KEY AUTOINCREMENT,
-  email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
-  mot_de_passe     TEXT NOT NULL,
-  nom              TEXT,
-  jeton_version    INTEGER NOT NULL DEFAULT 0,
-  cree_le          TEXT NOT NULL DEFAULT (datetime('now'))
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  identifiant       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  nom               TEXT,
+  totp_secret       TEXT,                         -- secret base32 ; NULL => pas encore enrôlé
+  totp_dernier_pas  INTEGER NOT NULL DEFAULT -1,  -- dernier pas TOTP utilisé (un code ne sert qu'une fois)
+  totp_secret_attente TEXT,                       -- secret proposé pendant l'enrôlement, en attente de confirmation
+  activation_hash   TEXT,                         -- SHA-256 du code d'activation de première connexion
+  activation_expire TEXT,                         -- date d'expiration du code d'activation
+  jeton_version     INTEGER NOT NULL DEFAULT 0,
+  cree_le           TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Abonnement d'un exploitant (préparation de la future gestion des abonnements).

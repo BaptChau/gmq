@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import db from './db.js';
 
 // Secret de signature des jetons JWT.
@@ -73,30 +74,77 @@ export function authRequis(req, res, next) {
   next();
 }
 
+/* ---------------- Code d'activation (première connexion admin) ---------------- */
+
+// Durée de validité d'un code d'activation
+export const ACTIVATION_HEURES = 24;
+const ALPHABET_ACTIVATION = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans 0/O ni 1/I
+
+// Code aléatoire de 16 caractères (80 bits), présenté par groupes : ABCD-EFGH-JKLM-NPQR
+export function genererCodeActivation() {
+  const octets = randomBytes(16);
+  const brut = [...octets].map((o) => ALPHABET_ACTIVATION[o % ALPHABET_ACTIVATION.length]).join('');
+  return brut.match(/.{4}/g).join('-');
+}
+
+// Les tirets, espaces et la casse sont ignorés à la saisie
+function normaliserCodeActivation(code) {
+  return String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+export function hacherCodeActivation(code) {
+  return createHash('sha256').update(normaliserCodeActivation(code)).digest('hex');
+}
+
+/** Vérifie un code d'activation saisi contre l'admin (hash + expiration). */
+export function verifierCodeActivation(admin, code, maintenant = new Date()) {
+  if (!admin.activation_hash || !admin.activation_expire) return false;
+  // Date ISO (UTC) ; une date illisible donne NaN et est donc refusée
+  if (!(new Date(admin.activation_expire) > maintenant)) return false;
+  const saisi = Buffer.from(hacherCodeActivation(code), 'hex');
+  return timingSafeEqual(saisi, Buffer.from(admin.activation_hash, 'hex'));
+}
+
+// Jeton de courte durée remis après validation du code d'activation : il ne donne
+// accès qu'à la finalisation de l'enrôlement TOTP, pas au back-office.
+const ROLE_ENROLEMENT = 'admin-enrolement';
+
 export function signerJetonAdmin(admin) {
   return jwt.sign(
-    { id: admin.id, email: admin.email, role: ROLE_ADMIN, v: admin.jeton_version },
+    { id: admin.id, identifiant: admin.identifiant, role: ROLE_ADMIN, v: admin.jeton_version },
     JWT_SECRET,
     { expiresIn: process.env.ADMIN_JWT_EXPIRES_IN || '8h' }
   );
 }
 
-/**
- * Middleware Express : exige un jeton administrateur valide et attache req.admin.
- */
-export function adminRequis(req, res, next) {
-  const token = lireJeton(req);
-  if (!token) return res.status(401).json({ error: 'Authentification requise' });
-  let payload;
-  try {
-    payload = jwt.verify(token, JWT_SECRET);
-  } catch {
-    return res.status(401).json({ error: 'Session invalide ou expirée' });
-  }
-  if (payload.role !== ROLE_ADMIN) return res.status(401).json({ error: 'Session invalide ou expirée' });
-  const admin = db.prepare('SELECT id, email, nom, jeton_version FROM admins WHERE id = ?').get(payload.id);
-  if (!admin || payload.v !== admin.jeton_version)
-    return res.status(401).json({ error: 'Session invalide ou expirée' });
-  req.admin = admin;
-  next();
+export function signerJetonEnrolement(admin) {
+  return jwt.sign({ id: admin.id, role: ROLE_ENROLEMENT, v: admin.jeton_version }, JWT_SECRET, {
+    expiresIn: '15m',
+  });
 }
+
+// Fabrique un middleware qui exige un jeton admin du rôle donné et attache req.admin.
+function exigerJetonAdmin(role) {
+  return (req, res, next) => {
+    const token = lireJeton(req);
+    if (!token) return res.status(401).json({ error: 'Authentification requise' });
+    let payload;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: 'Session invalide ou expirée' });
+    }
+    if (payload.role !== role) return res.status(401).json({ error: 'Session invalide ou expirée' });
+    const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(payload.id);
+    if (!admin || payload.v !== admin.jeton_version)
+      return res.status(401).json({ error: 'Session invalide ou expirée' });
+    req.admin = admin;
+    next();
+  };
+}
+
+/** Middleware Express : exige une session administrateur. */
+export const adminRequis = exigerJetonAdmin(ROLE_ADMIN);
+
+/** Middleware Express : exige un jeton d'enrôlement (première connexion en cours). */
+export const enrolementRequis = exigerJetonAdmin(ROLE_ENROLEMENT);

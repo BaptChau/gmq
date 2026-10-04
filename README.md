@@ -44,14 +44,24 @@ Interface d'administration séparée de l'appli exploitant (`frontend/admin.html
 - historique des actions de chaque admin (`admin_journal`).
 
 Les admins sont des comptes distincts (table `admins`) avec leurs propres jetons : un jeton exploitant
-n'ouvre pas le back-office et inversement. Pour créer un admin (ou réinitialiser son mot de passe) :
+n'ouvre pas le back-office et inversement. Ils se connectent avec un **identifiant** et un **code à usage
+unique (TOTP)** généré par une application d'authentification (Google Authenticator, Aegis, 1Password…) —
+pas de mot de passe. Un code ne sert qu'une fois ; 5 échecs bloquent l'identifiant 15 minutes.
 
-```bash
-cd backend && npm run admin -- vous@exemple.fr "Votre nom"         # en local
-docker compose exec backend node src/admin-cli.js vous@exemple.fr   # en production
-```
+**Première connexion d'un admin** :
+1. Création du compte (affiche un code d'activation à usage unique, valable 24 h) :
+   ```bash
+   cd backend && npm run admin -- <identifiant> "Votre nom"                      # en local
+   docker compose exec backend node src/admin-cli.js <identifiant> "Votre nom"  # en production
+   ```
+2. Connexion sur `backof.<domaine>` → « Première connexion ? » → identifiant + code d'activation.
+3. Le serveur détecte que l'admin n'est pas encore enrôlé : un QR code s'affiche dans le navigateur,
+   à scanner avec l'application d'authentification.
+4. Saisie du premier code à 6 chiffres : l'enrôlement est validé, le code d'activation est consommé
+   et la session s'ouvre. Les connexions suivantes se font avec identifiant + code de l'application.
 
-Le mot de passe (10 caractères minimum) est demandé au clavier.
+Téléphone perdu ou changement d'application : relancer la même commande. L'ancien TOTP est supprimé,
+les sessions sont fermées, et un nouveau code d'activation permet de refaire l'enrôlement.
 
 **Routage** : nginx sert le back-office quand l'hôte commence par `backof.`, et l'appli exploitant sinon.
 Les routes `/api/admin/*` ne répondent **que** sur le sous-domaine `backof.` (404 sur le domaine principal).

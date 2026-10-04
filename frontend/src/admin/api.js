@@ -23,13 +23,15 @@ export function onSessionExpiree(fn) {
   surSessionExpiree = fn;
 }
 
-async function req(url, options = {}) {
+// options.jeton : jeton à utiliser à la place de la session (ex. jeton d'enrôlement)
+async function req(url, { jeton, ...options } = {}) {
   const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const auth = jeton || token;
+  if (auth) headers.Authorization = `Bearer ${auth}`;
   const res = await fetch(BASE + url, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    if (res.status === 401 && token) {
+    if (res.status === 401 && token && !jeton) {
       setToken(null);
       surSessionExpiree();
     }
@@ -43,7 +45,9 @@ export const LIBELLES_STATUT = { en_attente: 'En attente', actif: 'Actif', gele:
 const json = (method, data) => ({ method, body: JSON.stringify(data) });
 
 export const api = {
+  // Réponse : { token, admin } ou, à la première connexion, { enrolement: { jeton, secret, uri } }
   login: (data) => req('/login', json('POST', data)),
+  terminerEnrolement: (jeton, code) => req('/enrolement', { ...json('POST', { code }), jeton }),
   me: () => req('/me'),
 
   listExploitants: (filtres = {}) => {
