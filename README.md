@@ -37,7 +37,9 @@ Le **GMQ** n'est pas stocké : il est calculé à la volée à partir des pesée
 Pages statiques (HTML + CSS, sans JavaScript) dans `frontend/landing/` :
 - `/` : accueil ;
 - `/fonctionnement` : guide pas à pas ;
-- `/gmq` : le GMQ expliqué avec un exemple.
+- `/gmq` : le GMQ expliqué avec un exemple ;
+- `/mentions-legales` et `/confidentialite` : informations légales et RGPD (à mettre à jour si le statut
+  de l'éditeur, l'hébergement ou les données collectées changent, par exemple avec les abonnements payants).
 
 L'en-tête et le pied de page communs sont dans `frontend/landing/partiels/`, insérés au build par un
 petit plugin Vite (`vite.config.js`). Les styles partagés avec l'application sont dans `frontend/src/tokens.css`.

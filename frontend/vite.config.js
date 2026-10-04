@@ -11,6 +11,8 @@ const PAGES_LANDING = {
   '/': 'landing/index.html',
   '/fonctionnement': 'landing/fonctionnement.html',
   '/gmq': 'landing/gmq.html',
+  '/mentions-legales': 'landing/mentions-legales.html',
+  '/confidentialite': 'landing/confidentialite.html',
 };
 
 /**

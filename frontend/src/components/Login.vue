@@ -83,6 +83,11 @@ function basculer() {
         {{ enCours ? 'Veuillez patienter…' : mode === 'login' ? 'Se connecter' : 'Créer mon compte' }}
       </button>
 
+      <p v-if="mode === 'register'" class="info-donnees">
+        Vos données servent uniquement au suivi de vos animaux.
+        <a :href="`${urlSite}confidentialite`">Politique de confidentialité</a>
+      </p>
+
       <p class="bascule">
         <template v-if="mode === 'login'">
           Pas encore de compte ?
@@ -94,6 +99,9 @@ function basculer() {
         </template>
       </p>
     </div>
-    <a class="lien-site" :href="urlSite">Découvrir l'application</a>
+    <p class="liens-site">
+      <a :href="urlSite">Découvrir l'application</a>
+      <a :href="`${urlSite}mentions-legales`">Mentions légales</a>
+    </p>
   </div>
 </template>
