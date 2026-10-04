@@ -1,0 +1,14 @@
+# Blocs à ajouter au Caddyfile du reverse-proxy (stack ~/proxy sur le serveur),
+# en remplaçant mon-domaine.fr par le vrai domaine. Caddy obtient seul les
+# certificats HTTPS ; il conserve l'en-tête Host, ce qui permet à nginx
+# (gmq-frontend) de servir l'application ou le site selon le sous-domaine.
+
+# Application
+mon-domaine.fr {
+    reverse_proxy gmq-frontend:80
+}
+
+# Site de présentation, public et référencé
+landing.mon-domaine.fr {
+    reverse_proxy gmq-frontend:80
+}

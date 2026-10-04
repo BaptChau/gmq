@@ -32,6 +32,31 @@ besoin par un rendement propre à chaque broutard (sélecteur 55 / 58 / 60 %).
 Le **GMQ** n'est pas stocké : il est calculé à la volée à partir des pesées (carcasse convertie en poids vif) :
 `(dernier poids vif − premier poids vif) / nombre de jours`, exprimé en **g/jour** (null si < 2 pesées).
 
+## Site de présentation (`landing.<domaine>`)
+
+Pages statiques (HTML + CSS, sans JavaScript) dans `frontend/landing/` :
+- `/` : accueil ;
+- `/fonctionnement` : guide pas à pas ;
+- `/gmq` : le GMQ expliqué avec un exemple.
+
+L'en-tête et le pied de page communs sont dans `frontend/landing/partiels/`, insérés au build par un
+petit plugin Vite (`vite.config.js`). Les styles partagés avec l'application sont dans `frontend/src/tokens.css`.
+
+nginx sert ces pages quand l'hôte commence par `landing.`. Les liens `/connexion` et `/inscription`
+redirigent vers l'application sur le domaine principal (`/?inscription` ouvre directement la création de compte).
+**Mise en ligne** (le site est public et ouvert aux moteurs de recherche) :
+1. DNS : un enregistrement `A` (et `AAAA` si IPv6) pour `landing.mon-domaine.fr` vers l'IP du serveur.
+2. Caddy : ajouter le bloc de `deploy/Caddyfile.exemple` au Caddyfile de `~/proxy`, puis recharger Caddy.
+3. Reconstruire le frontend : `docker compose up -d --build`.
+4. Vérifier depuis l'extérieur : `curl -I https://landing.mon-domaine.fr/` doit répondre `200`.
+5. Déclarer le site dans Google Search Console et y soumettre `https://landing.mon-domaine.fr/sitemap.xml`.
+
+Référencement : `landing.*` sert `robots.txt` (tout autorisé) et `sitemap.xml`, générés par nginx à partir
+du domaine demandé (rien à configurer). Les anciennes adresses en `.html` redirigent vers les adresses propres.
+L'application, elle, n'est pas indexée (`robots.txt` « Disallow » et en-tête `X-Robots-Tag: noindex`).
+
+En dev : http://landing.localhost:5173 (le serveur Vite reproduit le même routage).
+
 ## Démarrage
 
 ### 1. Backend

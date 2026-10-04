@@ -1,10 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { api, getToken, setToken, onSessionExpiree } from './api.js';
 import Login from './components/Login.vue';
 import BroutardForm from './components/BroutardForm.vue';
 import BroutardDetail from './components/BroutardDetail.vue';
 import MereManager from './components/MereManager.vue';
+import Icone from './components/Icone.vue';
+import Logo from './components/Logo.vue';
+import { niveauCroissance, dateLisible, nombre } from './format.js';
 
 const exploitant = ref(null); // compte connecté (null => écran de connexion)
 const verificationSession = ref(Boolean(getToken()));
@@ -49,8 +52,18 @@ async function selectionner(numero) {
   }
 }
 
+// Sur téléphone (une seule colonne), la fiche est sous la liste : on y amène l'utilisateur
+const ficheDetail = ref(null);
+async function ouvrirFiche(numero) {
+  await selectionner(numero);
+  if (window.matchMedia('(max-width: 860px)').matches) {
+    await nextTick();
+    ficheDetail.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
 async function onBroutardCree() {
-  afficherSucces('✓ Le broutard a bien été ajouté.');
+  afficherSucces('Le broutard a bien été ajouté.');
   await charger();
 }
 
@@ -59,7 +72,7 @@ async function supprimerBroutard(numero) {
   try {
     await api.deleteBroutard(numero);
     if (selection.value === numero) { selection.value = null; detail.value = null; }
-    afficherSucces(`✓ Le broutard ${numero} a été supprimé.`);
+    afficherSucces(`Le broutard ${numero} a été supprimé.`);
     await charger();
   } catch (e) {
     error.value = e.message;
@@ -71,16 +84,8 @@ async function onPeseeChange() {
   await charger(); // rafraîchit le GMQ dans la liste
 }
 
-// Niveau de croissance à partir du GMQ (g/jour), pour la couleur et le texte.
-function gmqNiveau(gmq) {
-  if (gmq == null) return { classe: 'none', icone: '⏳', mot: 'En attente' };
-  if (gmq < 800) return { classe: 'low', icone: '🔻', mot: 'Faible' };
-  if (gmq < 1100) return { classe: 'mid', icone: '➡️', mot: 'Correcte' };
-  return { classe: 'good', icone: '🔺', mot: 'Bonne' };
-}
-
 function gmqLabel(b) {
-  return b.gmq_g_jour == null ? 'En attente' : `${b.gmq_g_jour} g/jour`;
+  return b.gmq_g_jour == null ? 'En attente' : `${nombre(b.gmq_g_jour)} g/jour`;
 }
 
 function reinitialiser() {
@@ -122,22 +127,63 @@ onMounted(async () => {
   <div v-if="verificationSession" class="container"><p class="aide">Chargement…</p></div>
   <Login v-else-if="!exploitant" @connecte="onConnecte" />
   <div v-else class="container">
-    <header>
+    <div class="barre-app">
+      <Logo />
       <div class="barre-compte">
-        <span>👤 {{ exploitant.nom || exploitant.email }}</span>
-        <button class="ghost" @click="deconnecter">Se déconnecter</button>
+        <span class="nom-compte"><Icone nom="utilisateur" /> {{ exploitant.nom || exploitant.email }}</span>
+        <button class="ghost" @click="deconnecter"><Icone nom="sortie" /> Se déconnecter</button>
       </div>
-      <h1>🐄 Suivi de mes broutards</h1>
+    </div>
+
+    <header class="intro">
+      <h1>Mes broutards</h1>
       <p class="sous-titre">
-        Enregistrez vos jeunes bovins, notez leurs pesées, et voyez tout de suite s'ils grossissent bien.
+        Ajoutez vos animaux, notez leurs pesées, et voyez tout de suite s'ils grossissent bien.
       </p>
     </header>
 
-    <p v-if="succes" class="bandeau succes">{{ succes }}</p>
-    <p v-if="error" class="bandeau erreur">⚠️ {{ error }}</p>
+    <p v-if="succes" class="bandeau succes" role="status"><Icone nom="valide" /> {{ succes }}</p>
+    <p v-if="error" class="bandeau erreur" role="alert"><Icone nom="alerte" /> {{ error }}</p>
 
     <div class="grid">
       <div>
+        <div class="card">
+          <h2>Liste des broutards ({{ broutards.length }})</h2>
+          <p class="aide">Touchez un broutard pour voir ses pesées ou en ajouter une.</p>
+
+          <p v-if="!broutards.length" class="empty">
+            <Icone nom="liste" class="icone-vide" />
+            Vous n'avez encore aucun broutard.<br />
+            Commencez avec le formulaire « Ajouter un broutard » juste en dessous.
+          </p>
+
+          <div
+            v-for="b in broutards"
+            :key="b.numero"
+            class="list-item cliquable"
+            :class="{ active: selection === b.numero }"
+            role="button"
+            tabindex="0"
+            :aria-pressed="selection === b.numero"
+            @click="ouvrirFiche(b.numero)"
+            @keydown.enter="ouvrirFiche(b.numero)"
+          >
+            <div>
+              <div class="titre-item">{{ b.numero }}</div>
+              <div class="meta">
+                Mère : {{ b.mere_numero || 'non renseignée' }} · Depuis le {{ dateLisible(b.debut_engraissement) }}
+              </div>
+            </div>
+            <div class="item-droite">
+              <span class="gmq-badge" :class="niveauCroissance(b.gmq_g_jour).classe">
+                <Icone :nom="niveauCroissance(b.gmq_g_jour).icone" />
+                {{ gmqLabel(b) }}
+                <span class="sr-only">— {{ niveauCroissance(b.gmq_g_jour).long }}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+
         <BroutardForm
           :meres="meres"
           :rendements="config.rendements"
@@ -146,52 +192,14 @@ onMounted(async () => {
           @erreur="afficherErreur"
         />
 
-        <div class="card">
-          <h2>📋 Mes broutards ({{ broutards.length }})</h2>
-          <p class="aide">Touchez un broutard pour voir ses pesées et ajouter une nouvelle pesée.</p>
-
-          <p v-if="!broutards.length" class="empty">
-            <span class="grand">🐄</span>
-            Vous n'avez encore aucun broutard.<br />
-            Utilisez le formulaire « Ajouter un broutard » ci-dessus pour commencer.
-          </p>
-
-          <div
-            v-for="b in broutards"
-            :key="b.numero"
-            class="list-item"
-            :class="{ active: selection === b.numero }"
-            role="button"
-            tabindex="0"
-            @click="selectionner(b.numero)"
-            @keydown.enter="selectionner(b.numero)"
-          >
-            <div>
-              <div class="titre-item">{{ b.numero }}</div>
-              <div class="meta">
-                Mère : {{ b.mere_numero || 'non renseignée' }} · Depuis le {{ b.debut_engraissement }}
-              </div>
-            </div>
-            <div class="item-droite">
-              <span
-                class="gmq-badge"
-                :class="gmqNiveau(b.gmq_g_jour).classe"
-                :title="'Croissance : ' + gmqNiveau(b.gmq_g_jour).mot"
-              >
-                {{ gmqNiveau(b.gmq_g_jour).icone }} {{ gmqLabel(b) }}
-              </span>
-              <button class="danger" @click.stop="supprimerBroutard(b.numero)">🗑️ Supprimer</button>
-            </div>
-          </div>
-        </div>
-
         <MereManager :meres="meres" @change="charger" @erreur="afficherErreur" />
       </div>
 
-      <div>
+      <div ref="ficheDetail">
         <BroutardDetail
           :broutard="detail"
           @change="onPeseeChange"
+          @supprimer="supprimerBroutard"
           @erreur="afficherErreur"
         />
       </div>

@@ -1,10 +1,16 @@
 <script setup>
 import { ref } from 'vue';
 import { api, setToken } from '../api.js';
+import Icone from './Icone.vue';
+import Logo from './Logo.vue';
 
 const emit = defineEmits(['connecte']);
 
-const mode = ref('login'); // 'login' ou 'register'
+// 'login' ou 'register' ; les liens « Créer un compte » du site arrivent avec ?inscription
+const mode = ref(new URLSearchParams(location.search).has('inscription') ? 'register' : 'login');
+
+// Site de présentation : même domaine, préfixé par « landing. »
+const urlSite = `${location.protocol}//landing.${location.host}/`;
 const email = ref('');
 const mot_de_passe = ref('');
 const nom = ref('');
@@ -40,37 +46,47 @@ function basculer() {
 
 <template>
   <div class="login-wrap">
+    <Logo />
     <div class="card login-card">
-      <h1 class="login-titre">🐄 Suivi de mes broutards</h1>
-      <p class="aide" style="text-align:center;">
-        {{ mode === 'login' ? 'Connectez-vous à votre exploitation.' : 'Créez le compte de votre exploitation.' }}
+      <h1 class="login-titre">{{ mode === 'login' ? 'Connexion' : 'Créer un compte' }}</h1>
+      <p class="aide">
+        {{ mode === 'login'
+          ? 'Accédez au suivi de vos broutards.'
+          : 'Quelques secondes suffisent. Vous pourrez ajouter vos animaux juste après.' }}
       </p>
 
-      <p v-if="erreur" class="bandeau erreur">⚠️ {{ erreur }}</p>
+      <p v-if="erreur" class="bandeau erreur" role="alert"><Icone nom="alerte" /> {{ erreur }}</p>
 
       <div v-if="mode === 'register'" class="champ">
         <label for="lg-nom">Nom de l'exploitation (facultatif)</label>
-        <input id="lg-nom" v-model="nom" placeholder="Exemple : GAEC des Prés" @keyup.enter="valider" />
+        <input id="lg-nom" v-model="nom" autocomplete="organization" placeholder="Exemple : GAEC des Prés" @keyup.enter="valider" />
       </div>
 
       <div class="champ">
-        <label for="lg-email">Email</label>
-        <input id="lg-email" type="email" v-model="email" placeholder="vous@exemple.fr" @keyup.enter="valider" />
+        <label for="lg-email">Adresse email</label>
+        <input id="lg-email" type="email" v-model="email" autocomplete="email" placeholder="vous@exemple.fr" @keyup.enter="valider" />
       </div>
 
       <div class="champ">
         <label for="lg-mdp">Mot de passe</label>
-        <input id="lg-mdp" type="password" v-model="mot_de_passe" placeholder="Au moins 6 caractères" @keyup.enter="valider" />
+        <span v-if="mode === 'register'" class="exemple">Au moins 6 caractères.</span>
+        <input
+          id="lg-mdp"
+          type="password"
+          v-model="mot_de_passe"
+          :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
+          @keyup.enter="valider"
+        />
       </div>
 
       <button class="pleine-largeur" :disabled="enCours" @click="valider">
-        {{ enCours ? 'Veuillez patienter…' : mode === 'login' ? '🔑 Se connecter' : '✅ Créer mon compte' }}
+        {{ enCours ? 'Veuillez patienter…' : mode === 'login' ? 'Se connecter' : 'Créer mon compte' }}
       </button>
 
       <p class="bascule">
         <template v-if="mode === 'login'">
           Pas encore de compte ?
-          <button class="lien" @click="basculer">Créer une exploitation</button>
+          <button class="lien" @click="basculer">Créer un compte</button>
         </template>
         <template v-else>
           Déjà un compte ?
@@ -78,5 +94,6 @@ function basculer() {
         </template>
       </p>
     </div>
+    <a class="lien-site" :href="urlSite">Découvrir l'application</a>
   </div>
 </template>
