@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { api } from '../api.js';
+import Icone from './Icone.vue';
 
 const props = defineProps({
   meres: Array,
@@ -31,7 +32,7 @@ async function creer() {
     numero.value = '';
     mere_id.value = '';
     rendement.value = '';
-    succes.value = '✓ Broutard ajouté à la liste.';
+    succes.value = 'Broutard ajouté à la liste.';
     setTimeout(() => { succes.value = ''; }, 4000);
     emit('cree');
   } catch (e) {
@@ -42,10 +43,10 @@ async function creer() {
 
 <template>
   <div class="card">
-    <h2>➕ Ajouter un broutard</h2>
+    <h2>Ajouter un broutard</h2>
     <p class="aide">Renseignez un nouveau jeune bovin à suivre.</p>
 
-    <p v-if="succes" class="bandeau succes">{{ succes }}</p>
+    <p v-if="succes" class="bandeau succes" role="status"><Icone nom="valide" /> {{ succes }}</p>
 
     <div class="champ">
       <label for="bf-numero">Numéro de boucle</label>
@@ -82,6 +83,6 @@ async function creer() {
       </select>
     </div>
 
-    <button class="pleine-largeur" @click="creer">➕ Ajouter ce broutard</button>
+    <button class="pleine-largeur" @click="creer"><Icone nom="plus" /> Ajouter ce broutard</button>
   </div>
 </template>

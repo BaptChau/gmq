@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Le GMQ expliqué simplement — Suivi GMQ</title>
+    <meta
+      name="description"
+      content="Qu'est-ce que le GMQ (gain moyen quotidien) d'un broutard, comment le calculer, et comment est traité le poids de carcasse. Exemple chiffré."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/landing/landing.css" />
+  </head>
+  <body>
+    <!-- inclure: entete -->
+
+    <main>
+      <section>
+        <div class="page contenu">
+          <span class="surtitre">Comprendre</span>
+          <h1>Le GMQ expliqué simplement</h1>
+          <p class="chapo">
+            Le GMQ, ou gain moyen quotidien, dit combien un animal prend de poids par jour, en moyenne.
+            C'est le repère le plus simple pour savoir si un broutard grossit bien.
+          </p>
+
+          <h2>Le calcul</h2>
+          <p>On compare deux pesées : la première et la dernière. On divise le poids gagné par le nombre de jours écoulés.</p>
+          <p class="formule">
+            GMQ <span class="egal">=</span> (dernier poids − premier poids) ÷ nombre de jours
+          </p>
+          <p>Le résultat est donné en grammes par jour : 1 000 g par jour, c'est 1 kg par jour.</p>
+
+          <h2>Un exemple</h2>
+          <p>Le broutard FR3001 a été pesé trois fois :</p>
+          <table class="tableau-calcul">
+            <thead>
+              <tr><th scope="col">Date</th><th scope="col" class="nombre">Poids</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1er mars</td><td class="nombre">280 kg</td></tr>
+              <tr><td>1er avril</td><td class="nombre">320 kg</td></tr>
+              <tr><td>1er mai</td><td class="nombre">365 kg</td></tr>
+            </tbody>
+          </table>
+          <ol>
+            <li>Poids gagné entre la première et la dernière pesée : 365 − 280 = <strong>85 kg</strong>.</li>
+            <li>Jours écoulés entre le 1er mars et le 1er mai : <strong>61 jours</strong>.</li>
+            <li>85 kg ÷ 61 jours = 1,393 kg par jour, soit <strong>1 393 g par jour</strong>.</li>
+          </ol>
+          <p>L'application fait ce calcul pour vous à chaque nouvelle pesée.</p>
+
+          <h2>Et le poids de carcasse ?</h2>
+          <p>
+            À la sortie d'abattoir, on connaît souvent le poids de la carcasse, pas le poids vif. Or la carcasse pèse
+            moins que l'animal vivant : la comparer directement aux pesées sur pied fausserait le calcul.
+          </p>
+          <p>L'application estime donc le poids vif à partir du <strong>rendement carcasse</strong> :</p>
+          <p class="formule">
+            poids vif estimé <span class="egal">=</span> poids de carcasse ÷ rendement
+          </p>
+          <p>
+            Par exemple, une carcasse de 270 kg avec un rendement de 58 % donne 270 ÷ 0,58 ≈ <strong>466 kg</strong>
+            de poids vif estimé. C'est ce poids qui entre dans le calcul du GMQ.
+          </p>
+          <p>
+            Le rendement par défaut est de 58 %. Vous pouvez choisir 55, 58 ou 60 % pour chaque animal si vous
+            connaissez mieux sa conformation.
+          </p>
+
+          <h2>Les repères de l'application</h2>
+          <p>Pour une lecture rapide, chaque animal reçoit une couleur selon son GMQ :</p>
+          <ul class="reperes">
+            <li><span class="pastille good">Bonne</span> au-delà de 1 100 g par jour</li>
+            <li><span class="pastille mid">Correcte</span> de 800 à 1 100 g par jour</li>
+            <li><span class="pastille low">Faible</span> en dessous de 800 g par jour</li>
+          </ul>
+          <p class="astuce">
+            <svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>
+            <span>
+              Ces repères sont indicatifs. La croissance attendue dépend notamment de la race, de l'âge et de
+              l'alimentation : comparez surtout vos animaux entre eux et d'une période à l'autre.
+            </span>
+          </p>
+        </div>
+      </section>
+
+      <section class="appel">
+        <div class="page">
+          <div class="bloc">
+            <h2>Laissez l'application calculer</h2>
+            <p>Notez vos pesées, le GMQ de chaque broutard s'affiche tout seul.</p>
+            <a class="btn" href="/inscription">Créer mon compte</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- inclure: pied -->
+  </body>
+</html>

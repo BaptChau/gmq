@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 import { api } from '../api.js';
+import Icone from './Icone.vue';
 
 const props = defineProps({ meres: Array });
 const emit = defineEmits(['change', 'erreur']);
@@ -24,7 +25,7 @@ async function creer() {
     await api.createMere({ numero: numero.value, nom: nom.value || null });
     numero.value = '';
     nom.value = '';
-    montrerSucces('✓ Mère ajoutée.');
+    montrerSucces('Mère ajoutée.');
     emit('change');
   } catch (e) {
     emit('erreur', e.message);
@@ -35,7 +36,7 @@ async function supprimer(id) {
   if (!confirm('Voulez-vous vraiment supprimer cette mère ?\nLes broutards liés seront conservés, mais sans mère.')) return;
   try {
     await api.deleteMere(id);
-    montrerSucces('✓ Mère supprimée.');
+    montrerSucces('Mère supprimée.');
     emit('change');
   } catch (e) {
     emit('erreur', e.message);
@@ -45,12 +46,12 @@ async function supprimer(id) {
 
 <template>
   <div class="card">
-    <h2>🐮 Les mères ({{ meres.length }})</h2>
+    <h2>Les mères ({{ meres.length }})</h2>
     <p class="aide">
       Enregistrez les mères pour pouvoir les relier à vos broutards. C'est facultatif.
     </p>
 
-    <p v-if="succes" class="bandeau succes">{{ succes }}</p>
+    <p v-if="succes" class="bandeau succes" role="status"><Icone nom="valide" /> {{ succes }}</p>
 
     <div class="row">
       <div class="champ">
@@ -62,19 +63,20 @@ async function supprimer(id) {
         <input id="mm-nom" v-model="nom" placeholder="Exemple : Noisette" />
       </div>
     </div>
-    <button class="pleine-largeur" @click="creer">➕ Ajouter cette mère</button>
+    <button class="pleine-largeur ghost" @click="creer"><Icone nom="plus" /> Ajouter cette mère</button>
 
     <div class="mt">
       <p v-if="!meres.length" class="empty">
-        <span class="grand">🐮</span>
         Aucune mère enregistrée pour l'instant.
       </p>
-      <div v-for="m in meres" :key="m.id" class="list-item" style="cursor:default;">
+      <div v-for="m in meres" :key="m.id" class="list-item">
         <div>
           <span class="titre-item">{{ m.numero }}</span>
           <span class="meta" v-if="m.nom"> · {{ m.nom }}</span>
         </div>
-        <button class="danger" @click="supprimer(m.id)">🗑️ Supprimer</button>
+        <button class="danger" :aria-label="`Supprimer la mère ${m.numero}`" @click="supprimer(m.id)">
+          <Icone nom="corbeille" /> Supprimer
+        </button>
       </div>
     </div>
   </div>

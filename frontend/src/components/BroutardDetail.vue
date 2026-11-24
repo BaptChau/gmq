@@ -1,9 +1,11 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { api } from '../api.js';
+import Icone from './Icone.vue';
+import { niveauCroissance, dateLisible, nombre } from '../format.js';
 
 const props = defineProps({ broutard: Object });
-const emit = defineEmits(['change', 'erreur']);
+const emit = defineEmits(['change', 'supprimer', 'erreur']);
 
 const date = ref(new Date().toISOString().slice(0, 10));
 const poids = ref('');
@@ -15,14 +17,7 @@ function montrerSucces(message) {
   setTimeout(() => { succes.value = ''; }, 4000);
 }
 
-// Niveau de croissance à partir du GMQ (g/jour).
-const niveau = computed(() => {
-  const gmq = props.broutard ? props.broutard.gmq_g_jour : null;
-  if (gmq == null) return { classe: 'none', icone: '⏳', mot: 'En attente de pesées' };
-  if (gmq < 800) return { classe: 'low', icone: '🔻', mot: 'Croissance faible' };
-  if (gmq < 1100) return { classe: 'mid', icone: '➡️', mot: 'Croissance correcte' };
-  return { classe: 'good', icone: '🔺', mot: 'Bonne croissance' };
-});
+const niveau = computed(() => niveauCroissance(props.broutard ? props.broutard.gmq_g_jour : null));
 
 // Poids vif équivalent d'une pesée (converti si c'est une carcasse).
 function poidsVif(p) {
@@ -44,7 +39,7 @@ async function ajouterPesee() {
       type: typePesee.value,
     });
     poids.value = '';
-    montrerSucces(typePesee.value === 'carcasse' ? '✓ Poids de carcasse enregistré.' : '✓ Pesée enregistrée.');
+    montrerSucces(typePesee.value === 'carcasse' ? 'Poids de carcasse enregistré.' : 'Pesée enregistrée.');
     emit('change');
   } catch (e) {
     emit('erreur', e.message);
@@ -55,7 +50,7 @@ async function supprimerPesee(id) {
   if (!confirm('Voulez-vous vraiment supprimer cette pesée ?')) return;
   try {
     await api.deletePesee(id);
-    montrerSucces('✓ Pesée supprimée.');
+    montrerSucces('Pesée supprimée.');
     emit('change');
   } catch (e) {
     emit('erreur', e.message);
@@ -65,18 +60,18 @@ async function supprimerPesee(id) {
 
 <template>
   <div class="card" v-if="broutard">
-    <h2>🐄 Broutard {{ broutard.numero }}</h2>
+    <h2>Broutard {{ broutard.numero }}</h2>
     <p class="aide">
       Mère : {{ broutard.mere_numero || 'non renseignée' }}{{ broutard.mere_nom ? ' (' + broutard.mere_nom + ')' : '' }}
-      · Début d'engraissement : {{ broutard.debut_engraissement }}
+      · Début d'engraissement : {{ dateLisible(broutard.debut_engraissement) }}
       · Rendement : {{ broutard.rendement_applique }} %{{ broutard.rendement == null ? ' (défaut)' : '' }}
     </p>
 
-    <p v-if="succes" class="bandeau succes">{{ succes }}</p>
+    <p v-if="succes" class="bandeau succes" role="status"><Icone nom="valide" /> {{ succes }}</p>
 
     <!-- Encart GMQ expliqué en langage simple -->
     <div class="gmq-encart" :class="niveau.classe">
-      <span class="gmq-icone" aria-hidden="true">{{ niveau.icone }}</span>
+      <Icone :nom="niveau.icone" class="gmq-icone" />
       <div>
         <template v-if="broutard.gmq_g_jour == null">
           <div class="gmq-chiffre">Pas encore de résultat</div>
@@ -86,10 +81,10 @@ async function supprimerPesee(id) {
           </div>
         </template>
         <template v-else>
-          <div class="gmq-chiffre">{{ broutard.gmq_g_jour }} g / jour — {{ niveau.mot }}</div>
+          <div class="gmq-chiffre">{{ nombre(broutard.gmq_g_jour) }} g / jour — {{ niveau.long }}</div>
           <div class="gmq-texte">
-            Le veau prend en moyenne <strong>{{ broutard.gmq_g_jour }} grammes par jour</strong>
-            (soit environ {{ (broutard.gmq_g_jour / 1000).toFixed(2) }} kg par jour).
+            Le veau prend en moyenne <strong>{{ nombre(broutard.gmq_g_jour) }} grammes par jour</strong>
+            (soit environ {{ nombre(broutard.gmq_g_jour / 1000, 2) }} kg par jour).
           </div>
         </template>
       </div>
@@ -97,7 +92,7 @@ async function supprimerPesee(id) {
 
     <!-- Bloc carcasse (si le broutard a été abattu) -->
     <div v-if="broutard.a_carcasse" class="carcasse-encart">
-      <span class="gmq-icone" aria-hidden="true">🥩</span>
+      <Icone nom="drapeau" class="gmq-icone" />
       <div>
         <div class="gmq-chiffre">Abattu · carcasse {{ broutard.poids_carcasse }} kg</div>
         <div class="gmq-texte">
@@ -108,7 +103,7 @@ async function supprimerPesee(id) {
       </div>
     </div>
 
-    <h3>⚖️ Les pesées</h3>
+    <h3>Les pesées</h3>
     <div class="table-wrap" v-if="broutard.pesees && broutard.pesees.length">
       <table>
         <thead>
@@ -116,9 +111,9 @@ async function supprimerPesee(id) {
         </thead>
         <tbody>
           <tr v-for="p in broutard.pesees" :key="p.id">
-            <td>{{ p.date }}</td>
+            <td>{{ dateLisible(p.date) }}</td>
             <td>
-              <span v-if="p.type === 'carcasse'" class="type-tag carcasse">🥩 Carcasse</span>
+              <span v-if="p.type === 'carcasse'" class="type-tag carcasse">Carcasse</span>
               <span v-else class="type-tag vif">Sur pied</span>
             </td>
             <td>{{ p.poids }} kg</td>
@@ -127,19 +122,21 @@ async function supprimerPesee(id) {
               <span v-if="p.type === 'carcasse'" class="estime">(estimé)</span>
             </td>
             <td class="actions">
-              <button class="danger" @click="supprimerPesee(p.id)">🗑️ Supprimer</button>
+              <button class="danger" :aria-label="`Supprimer la pesée du ${dateLisible(p.date)}`" @click="supprimerPesee(p.id)">
+                <Icone nom="corbeille" /> Supprimer
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
     <p v-else class="empty">
-      <span class="grand">⚖️</span>
+      <Icone nom="balance" class="icone-vide" />
       Aucune pesée pour ce broutard.<br />
       Ajoutez la première pesée ci-dessous.
     </p>
 
-    <h3>➕ Ajouter une pesée</h3>
+    <h3>Ajouter une pesée</h3>
     <div class="champ">
       <label for="bd-type">Type de pesée</label>
       <select id="bd-type" v-model="typePesee">
@@ -159,15 +156,22 @@ async function supprimerPesee(id) {
       </div>
     </div>
     <button class="pleine-largeur" @click="ajouterPesee">
-      {{ typePesee === 'carcasse' ? '🥩 Enregistrer le poids de carcasse' : '➕ Enregistrer la pesée' }}
+      <Icone :nom="typePesee === 'carcasse' ? 'drapeau' : 'plus'" />
+      {{ typePesee === 'carcasse' ? 'Enregistrer le poids de carcasse' : 'Enregistrer la pesée' }}
     </button>
+
+    <div class="zone-suppression">
+      <button class="danger" @click="emit('supprimer', broutard.numero)">
+        <Icone nom="corbeille" /> Supprimer ce broutard et ses pesées
+      </button>
+    </div>
   </div>
 
   <div class="card" v-else>
-    <h2>🐄 Détail d'un broutard</h2>
+    <h2>Détail d'un broutard</h2>
     <p class="empty">
-      <span class="grand">👈</span>
-      Touchez un broutard dans la liste de gauche
+      <Icone nom="balance" class="icone-vide" />
+      Touchez un broutard dans la liste
       pour voir ses pesées et sa croissance, ou pour ajouter une pesée.
     </p>
   </div>
